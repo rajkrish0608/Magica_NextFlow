@@ -1,0 +1,383 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Hide Clerk development mode badge */
+.cl-internal-b3fm6y,
+[data-clerk-dev-mode-badge],
+.cl-dev-mode-badge,
+div[style*="position: fixed"][style*="z-index: 2147483647"] {
+  display: none !important;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Galaxy.ai / Magica EXACT Design Tokens
+   Source: try.galaxy.ai/clone screenshots (May 2026)
+   Theme: LIGHT (white background)
+   ═══════════════════════════════════════════════════════════ */
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 0 0% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 0 0% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 3.9%;
+    --primary: 0 0% 9%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 0 0% 96.1%;
+    --secondary-foreground: 0 0% 9%;
+    --muted: 0 0% 96.1%;
+    --muted-foreground: 0 0% 45.1%;
+    --accent: 0 0% 96.1%;
+    --accent-foreground: 0 0% 9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 89.8%;
+    --input: 0 0% 89.8%;
+    --ring: 0 0% 3.9%;
+    --radius: 0.5rem;
+    --sidebar-background: 0 0% 98%;
+    --sidebar-foreground: 240 5.3% 26.1%;
+    --sidebar-primary: 240 5.9% 10%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 240 4.8% 95.9%;
+    --sidebar-accent-foreground: 240 5.9% 10%;
+    --sidebar-border: 220 13% 91%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+    --galaxy-surface-main: #ffffff;
+    --galaxy-surface-primary: #efeff0;
+    --galaxy-surface-secondary: #e0e0e2;
+    --galaxy-surface-tertiary: #f6f6f6;
+    --galaxy-text-primary: #141416;
+    --galaxy-text-secondary: #858589;
+    --galaxy-text-tertiary: #a3a3a7;
+    --galaxy-border-primary: #e0e0e2;
+    --font-lora: "Lora", "Lora Fallback";
+    
+    /* Keep React Flow specific overrides */
+    --bg-canvas:     #f8f8f6;
+    --bg-primary:    #ffffff;
+    --bg-sidebar:    #ffffff;
+    --bg-node:       #ffffff;
+    --bg-node-hover: #fafafa;
+    --bg-input:      #f9fafb;
+    --bg-section:    #f3f4f6;
+    --handle-image:  #f97316;
+    --handle-text:   #3b82f6;
+    --handle-response: #22c55e;
+    --handle-video:  #a855f7;
+    --handle-audio:  #ec4899;
+    --edge-default:  #8b5cf6;
+    --edge-image:    #8b5cf6;
+    --edge-text:     #8b5cf6;
+    --edge-response: #8b5cf6;
+    --btn-run:       #22c55e;
+    --btn-run-text:  #ffffff;
+    --btn-primary:   #111827;
+    --success:       #22c55e;
+    --error:         #ef4444;
+    --warning:       #f59e0b;
+    --running:       #6366f1;
+  }
+  .dark {
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --sidebar-background: 240 5.9% 10%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+  }
+  
+  body {
+    font-family: Inter, sans-serif;
+    color: #141416;
+    background: #ffffff;
+  }
+}
+
+.hide-scrollbar {
+  scrollbar-width: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  /* body background/color handled in @layer base */
+  font-family: 'Google Sans Flex Variable', "Google Sans", 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ── React Flow canvas ── */
+.react-flow__renderer { background: var(--bg-canvas) !important; }
+.react-flow__background { background-color: var(--bg-canvas) !important; }
+
+/* Dot grid: light gray dots on near-white */
+.react-flow__background circle {
+  fill: #d1d5db !important;
+}
+
+.react-flow__minimap {
+  background: #111111 !important;
+  border: none !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.3) !important;
+}
+.react-flow__minimap-mask  { fill: rgba(255, 255, 255, 0.08) !important; }
+.react-flow__minimap-node  { fill: #a78bfa !important; stroke: none !important; }
+
+/* Controls */
+.react-flow__controls {
+  background: #ffffff !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08) !important;
+  overflow: hidden !important;
+}
+.react-flow__controls-button {
+  background: #ffffff !important;
+  border-bottom: 1px solid var(--border) !important;
+  color: var(--text-secondary) !important;
+  fill: var(--text-secondary) !important;
+  width: 28px !important;
+  height: 28px !important;
+}
+.react-flow__controls-button:hover {
+  background: var(--bg-section) !important;
+  color: var(--text-primary) !important;
+  fill: var(--text-primary) !important;
+}
+
+/* ── Edges — colored by type ── */
+.react-flow__edge-path { stroke-width: 2 !important; }
+.react-flow__connection-line { stroke-width: 2 !important; }
+
+/* Edge class overrides per type */
+.edge-image    .react-flow__edge-path { stroke: var(--edge-image)    !important; }
+.edge-text     .react-flow__edge-path { stroke: var(--edge-text)     !important; }
+.edge-response .react-flow__edge-path { stroke: var(--edge-response) !important; }
+
+/* Default edge: purple */
+.react-flow__edge-path     { stroke: var(--edge-default) !important; }
+.react-flow__connection-line { stroke: var(--edge-default) !important; }
+
+/* ── Handles ── */
+.react-flow__handle {
+  width: 10px !important;
+  height: 10px !important;
+  border: 2px solid #fff !important;
+  border-radius: 50% !important;
+  transition: transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+.react-flow__handle:hover {
+  transform: scale(1.4) !important;
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.2) !important;
+}
+/* Handle colors */
+.handle-image    { background: var(--handle-image)    !important; border-color: var(--handle-image)    !important; }
+.handle-text     { background: var(--handle-text)     !important; border-color: var(--handle-text)     !important; }
+.handle-response { background: var(--handle-response) !important; border-color: var(--handle-response) !important; }
+.handle-video    { background: var(--handle-video)    !important; border-color: var(--handle-video)    !important; }
+.handle-audio    { background: var(--handle-audio)    !important; border-color: var(--handle-audio)    !important; }
+
+/* ── Pulsating glow (running node) ── */
+.node-running {
+  animation: pulse-glow 1.5s ease-in-out infinite !important;
+  border-color: #f97316 !important; /* Orange 500 */
+  border-width: 2px !important;
+}
+
+@keyframes pulse-glow {
+  0% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4); }
+  50% { box-shadow: 0 0 10px 4px rgba(249, 115, 22, 0.7); }
+  100% { box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.4); }
+}
+
+/* ── Animated edge dashes ── */
+@keyframes dash-flow {
+  from { stroke-dashoffset: 20; }
+  to   { stroke-dashoffset: 0; }
+}
+.animated-edge {
+  stroke-dasharray: 6 4;
+  animation: dash-flow 0.5s linear infinite;
+}
+
+/* ── Node card ── */
+.workflow-node {
+  background: var(--bg-node);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  min-width: 240px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 0 0 0 transparent;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  font-family: 'Google Sans Flex Variable', "Google Sans", 'Inter', sans-serif;
+}
+.workflow-node:hover  {
+  border-color: var(--border-hover);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+.workflow-node.selected {
+  border-color: #6366f1 !important;
+  box-shadow: 0 0 0 2px rgba(99,102,241,0.2), 0 2px 8px rgba(0,0,0,0.08) !important;
+}
+
+/* Node header */
+.node-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  border-radius: 10px 10px 0 0;
+  background: #ffffff;
+}
+.node-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Small green Run pill button in node header — matches Galaxy.ai */
+.btn-node-run {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  background: #22c55e;
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
+  white-space: nowrap;
+}
+.btn-node-run:hover    { background: #16a34a; }
+.btn-node-run:disabled { background: #d1fae5; color: #6b7280; cursor: not-allowed; }
+
+/* Node body */
+.node-body { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+
+/* Node field row */
+.node-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.node-field-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Colored dot per field type — matches Galaxy.ai dots */
+.dot        { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.dot-orange { background: var(--handle-image); }
+.dot-blue   { background: var(--handle-text); }
+.dot-green  { background: var(--handle-response); }
+.dot-purple { background: var(--handle-video); }
+.dot-gray   { background: #9ca3af; }
+
+/* ── Inputs / Textareas ── */
+input[type="text"],
+input[type="number"],
+input[type="file"],
+textarea,
+select {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-family: 'Google Sans Flex Variable', "Google Sans", 'Inter', sans-serif;
+  padding: 5px 8px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  width: 100%;
+}
+input:focus, textarea:focus, select:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 0 2px rgba(99,102,241,0.12);
+}
+input:disabled, textarea:disabled {
+  background: var(--bg-section);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+input::placeholder, textarea::placeholder { color: var(--text-muted); }
+
+/* ── Status badges ── */
+.badge        { font-size: 10px; padding: 2px 7px; border-radius: 999px; font-weight: 500; }
+.badge-success { background: #dcfce7; color: #16a34a; }
+.badge-failed  { background: #fee2e2; color: #dc2626; }
+.badge-partial { background: #fef9c3; color: #ca8a04; }
+.badge-running { background: #ede9fe; color: #7c3aed; }
+
+/* ── Scrollbar (subtle) ── */
+::-webkit-scrollbar       { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #e5e7eb; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #d1d5db; }
+
+/* ── Sidebar ── */
+.sidebar {
+  width: 220px;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.sidebar-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
+  text-decoration: none;
+}
+.sidebar-nav-item:hover   { background: var(--bg-section); color: var(--text-primary); }
+.sidebar-nav-item.active  { background: #f3f4f6; color: var(--text-primary); font-weight: 500; }
+
+/* ── Node cost estimate (bottom of node, like Galaxy.ai) ── */
+.node-cost {
+  padding: 4px 10px;
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  border-radius: 0 0 10px 10px;
+}
+
+/* ── Dashboard workflow row: show context menu button on hover ── */
+.wf-row-item:hover .group-hover-btn {
+  opacity: 1 !important;
+}
+.group-hover-btn {
+  opacity: 0;
+  transition: opacity 0.15s;
+}
