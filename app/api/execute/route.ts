@@ -31,296 +31,301 @@ const ExecuteSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const { userId } = await auth();
-  if (!userId)
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  try {
+    const { userId } = await auth();
+    if (!userId)
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const body = await req.json().catch(() => ({}));
-  const parsed = ExecuteSchema.safeParse(body);
-  if (!parsed.success)
-    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    const body = await req.json().catch(() => ({}));
+    const parsed = ExecuteSchema.safeParse(body);
+    if (!parsed.success)
+      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const { workflowId, scope, selectedNodeIds, inputValues } = parsed.data;
+    const { workflowId, scope, selectedNodeIds, inputValues } = parsed.data;
 
-  const workflow = await prisma.workflow.findFirst({
-    where: { id: workflowId, userId },
-  });
-  if (!workflow)
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    const workflow = await prisma.workflow.findFirst({
+      where: { id: workflowId, userId },
+    });
+    if (!workflow)
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const nodes = workflow.nodes as any[];
-  const edges = workflow.edges as any[];
+    const nodes = workflow.nodes as any[];
+    const edges = workflow.edges as any[];
 
-  // Mark workflow as running
-  await prisma.workflow.update({
-    where: { id: workflowId },
-    data: { status: "running" },
-  });
+    // Mark workflow as running
+    await prisma.workflow.update({
+      where: { id: workflowId },
+      data: { status: "running" },
+    });
 
-  const runId = `run_${Date.now()}`;
-  const startTime = Date.now();
+    const runId = `run_${Date.now()}`;
+    const startTime = Date.now();
 
-  // Pre-create the run so it shows up in history immediately
-  const dbRun = await prisma.workflowRun.create({
-    data: {
-      workflowId,
-      userId,
-      status: "running",
-      scope,
-      duration: 0,
-      nodeResults: [],
-    },
-  });
+    // Pre-create the run so it shows up in history immediately
+    const dbRun = await prisma.workflowRun.create({
+      data: {
+        workflowId,
+        userId,
+        status: "running",
+        scope,
+        duration: 0,
+        nodeResults: [],
+      },
+    });
 
-  // Build execution graph (topological order with parallel support)
-  const targetNodes =
-    scope === "full"
-      ? nodes
-      : scope === "single" || scope === "partial"
-      ? nodes.filter((n) => selectedNodeIds?.includes(n.id))
-      : nodes;
+    // Build execution graph (topological order with parallel support)
+    const targetNodes =
+      scope === "full"
+        ? nodes
+        : scope === "single" || scope === "partial"
+        ? nodes.filter((n) => selectedNodeIds?.includes(n.id))
+        : nodes;
 
-  const executionOrder = buildDAGLayers(targetNodes, edges);
+    const executionOrder = buildDAGLayers(targetNodes, edges);
 
-  const nodeResults: any[] = [];
-  const resolvedOutputs: Record<string, any> = {};
+    const nodeResults: any[] = [];
+    const resolvedOutputs: Record<string, any> = {};
 
-  // Pre-populate from Request-Inputs
-  for (const node of nodes) {
-    if (node.type === "requestInputs") {
-      for (const field of node.data.fields || []) {
-        const key = `${node.id}__${field.id}`;
-        resolvedOutputs[key] = inputValues?.[field.id] ?? field.value;
+    // Pre-populate from Request-Inputs
+    for (const node of nodes) {
+      if (node.type === "requestInputs") {
+        for (const field of node.data.fields || []) {
+          const key = `${node.id}__${field.id}`;
+          resolvedOutputs[key] = inputValues?.[field.id] ?? field.value;
+        }
       }
     }
-  }
 
-  // Pre-populate from existing node outputs in database (useful for single or partial runs)
-  for (const node of nodes) {
-    if (node.type === "cropImage" && node.data?.output) {
-      resolvedOutputs[`${node.id}__output_image`] = node.data.output;
-    } else if (node.type === "geminiNode" && node.data?.output) {
-      resolvedOutputs[`${node.id}__response`] = node.data.output;
-    } else if (node.type === "responseNode" && node.data?.result) {
-      resolvedOutputs[`${node.id}__result`] = node.data.result;
+    // Pre-populate from existing node outputs in database (useful for single or partial runs)
+    for (const node of nodes) {
+      if (node.type === "cropImage" && node.data?.output) {
+        resolvedOutputs[`${node.id}__output_image`] = node.data.output;
+      } else if (node.type === "geminiNode" && node.data?.output) {
+        resolvedOutputs[`${node.id}__response`] = node.data.output;
+      } else if (node.type === "responseNode" && node.data?.result) {
+        resolvedOutputs[`${node.id}__result`] = node.data.result;
+      }
     }
-  }
 
-  try {
-    for (const layer of executionOrder) {
-      // Separate crop nodes (run in parallel — each has its own 30s delay)
-      // from Gemini nodes (run sequentially to avoid 429 rate limits)
-      const cropNodeIds = layer.filter((nid: string) => {
-        const n = nodes.find((x) => x.id === nid);
-        return n?.type === "cropImage";
-      });
-      const geminiNodeIds = layer.filter((nid: string) => {
-        const n = nodes.find((x) => x.id === nid);
-        return n?.type === "geminiNode";
-      });
-      const otherNodeIds = layer.filter((nid: string) => {
-        const n = nodes.find((x) => x.id === nid);
-        return n?.type !== "cropImage" && n?.type !== "geminiNode";
-      });
+    try {
+      for (const layer of executionOrder) {
+        // Separate crop nodes (run in parallel — each has its own 30s delay)
+        // from Gemini nodes (run sequentially to avoid 429 rate limits)
+        const cropNodeIds = layer.filter((nid: string) => {
+          const n = nodes.find((x) => x.id === nid);
+          return n?.type === "cropImage";
+        });
+        const geminiNodeIds = layer.filter((nid: string) => {
+          const n = nodes.find((x) => x.id === nid);
+          return n?.type === "geminiNode";
+        });
+        const otherNodeIds = layer.filter((nid: string) => {
+          const n = nodes.find((x) => x.id === nid);
+          return n?.type !== "cropImage" && n?.type !== "geminiNode";
+        });
 
-      const processNode = async (nodeId: string) => {
-        const node = nodes.find((n) => n.id === nodeId);
-        if (!node) return;
-        const nodeStart = Date.now();
+        const processNode = async (nodeId: string) => {
+          const node = nodes.find((n) => n.id === nodeId);
+          if (!node) return;
+          const nodeStart = Date.now();
 
-        // ── Request-Inputs & Response nodes (local only) ──
-        if (node.type === "requestInputs" || node.type === "responseNode") {
-          if (node.type === "responseNode") {
-            const resultKey = Object.keys(node.data.connectedInputs || {})[0];
-            const sourceKey = node.data.connectedInputs?.[resultKey];
-            resolvedOutputs[`${node.id}__result`] = resolvedOutputs[sourceKey] ?? null;
-          }
-          nodeResults.push({
-            nodeId,
-            status: "success",
-            duration: Date.now() - nodeStart,
-            output: resolvedOutputs[`${nodeId}__result`] ?? null,
-          });
-          return;
-        }
-
-        // ── Crop Image (Trigger.dev) ──
-        if (node.type === "cropImage") {
-          const inputImageKey = node.data.connectedInputs?.input_image;
-          const imageUrl = resolvedOutputs[inputImageKey] ?? "";
-          
-          let outputUrl = "https://picsum.photos/400/300";
-          let duration = 30000;
-          
-          if (imageUrl) {
-            const handle = await tasks.trigger<typeof cropImageTask>("crop-image", {
-              imageUrl,
-              x: node.data.inputs?.x ?? 0,
-              y: node.data.inputs?.y ?? 0,
-              width: node.data.inputs?.width ?? 100,
-              height: node.data.inputs?.height ?? 100,
-              nodeId,
-              runId: dbRun.id,
-            });
-            
-            const run = await runs.poll(handle.id);
-            if (run.status === "COMPLETED") {
-              outputUrl = run.output?.outputUrl ?? outputUrl;
-              duration = run.output?.duration ?? duration;
-            } else {
-              console.error(`Trigger.dev crop-image task failed for node ${nodeId}`);
+          // ── Request-Inputs & Response nodes (local only) ──
+          if (node.type === "requestInputs" || node.type === "responseNode") {
+            if (node.type === "responseNode") {
+              const resultKey = Object.keys(node.data.connectedInputs || {})[0];
+              const sourceKey = node.data.connectedInputs?.[resultKey];
+              resolvedOutputs[`${node.id}__result`] = resolvedOutputs[sourceKey] ?? null;
             }
+            nodeResults.push({
+              nodeId,
+              status: "success",
+              duration: Date.now() - nodeStart,
+              output: resolvedOutputs[`${nodeId}__result`] ?? null,
+            });
+            return;
           }
 
-          resolvedOutputs[`${nodeId}__output_image`] = outputUrl;
-          nodeResults.push({
-            nodeId,
-            status: "success",
-            duration,
-            inputs: {
-              imageUrl,
-              x: node.data.inputs?.x ?? 0,
-              y: node.data.inputs?.y ?? 0,
-              w: node.data.inputs?.width ?? 100,
-              h: node.data.inputs?.height ?? 100,
-            },
-            output: outputUrl,
-          });
-        }
-
-        // ── Gemini Node (Trigger.dev) ──
-        if (node.type === "geminiNode") {
-          const promptKey = node.data.connectedInputs?.prompt;
-          const prompt = resolvedOutputs[promptKey] ?? node.data.prompt ?? "";
-
-          const visionKeys = Array.isArray(node.data.connectedInputs?.vision)
-            ? node.data.connectedInputs.vision
-            : node.data.connectedInputs?.vision
-            ? [node.data.connectedInputs.vision]
-            : [];
-
-          const imageUrls = visionKeys
-            .map((k: string) => resolvedOutputs[k])
-            .filter(Boolean);
-
-          let responseText = "[AI Error] No response generated";
-          
-          try {
-            const handle = await tasks.trigger<typeof geminiTask>("gemini-task", {
-              model: node.data.model || "gemini-2.0-flash",
-              systemPrompt: node.data.systemPrompt,
-              prompt,
-              imageUrls,
-              nodeId,
-              runId: dbRun.id,
-            });
+          // ── Crop Image (Trigger.dev) ──
+          if (node.type === "cropImage") {
+            const inputImageKey = node.data.connectedInputs?.input_image;
+            const imageUrl = resolvedOutputs[inputImageKey] ?? "";
             
-            const run = await runs.poll(handle.id);
-            if (run.status === "COMPLETED") {
-              responseText = run.output?.response ?? responseText;
-            } else {
-              throw new Error(run.error ? JSON.stringify(run.error) : `Status ${run.status}`);
-            }
-          } catch (triggerError) {
-            console.error(`Trigger.dev gemini-task failed, falling back to direct API:`, triggerError);
-            try {
-              const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
-              const resolvedModel = resolveGeminiModel(node.data.model || "gemini-2.0-flash");
-              const geminiModel = genAI.getGenerativeModel({
-                model: resolvedModel,
-                systemInstruction: node.data.systemPrompt || undefined,
+            let outputUrl = "https://picsum.photos/400/300";
+            let duration = 30000;
+            
+            if (imageUrl) {
+              const handle = await tasks.trigger<typeof cropImageTask>("crop-image", {
+                imageUrl,
+                x: node.data.inputs?.x ?? 0,
+                y: node.data.inputs?.y ?? 0,
+                width: node.data.inputs?.width ?? 100,
+                height: node.data.inputs?.height ?? 100,
+                nodeId,
+                runId: dbRun.id,
               });
               
-              const parts: any[] = [{ text: prompt }];
-              
-              if (imageUrls && imageUrls.length > 0) {
-                for (const url of imageUrls) {
-                  try {
-                    const res = await fetch(url);
-                    const buffer = await res.arrayBuffer();
-                    const base64 = Buffer.from(buffer).toString("base64");
-                    const mimeType = res.headers.get("content-type") || "image/jpeg";
-                    parts.push({
-                      inlineData: { data: base64, mimeType },
-                    });
-                  } catch (e) {
-                    console.error("Fallback: Failed to load image:", url, e);
-                  }
-                }
+              const run = await runs.poll(handle.id);
+              if (run.status === "COMPLETED") {
+                outputUrl = run.output?.outputUrl ?? outputUrl;
+                duration = run.output?.duration ?? duration;
+              } else {
+                console.error(`Trigger.dev crop-image task failed for node ${nodeId}`);
               }
-              
-              const result = await geminiModel.generateContent(parts);
-              responseText = result.response.text();
-            } catch (fallbackError: any) {
-              console.error("Direct Gemini API fallback failed:", fallbackError);
-              responseText = `[AI Error] Fallback failed: ${fallbackError.message}`;
             }
+
+            resolvedOutputs[`${nodeId}__output_image`] = outputUrl;
+            nodeResults.push({
+              nodeId,
+              status: "success",
+              duration,
+              inputs: {
+                imageUrl,
+                x: node.data.inputs?.x ?? 0,
+                y: node.data.inputs?.y ?? 0,
+                w: node.data.inputs?.width ?? 100,
+                h: node.data.inputs?.height ?? 100,
+              },
+              output: outputUrl,
+            });
           }
 
-          resolvedOutputs[`${nodeId}__response`] = responseText;
-          nodeResults.push({
-            nodeId,
-            status: "success",
-            duration: Date.now() - nodeStart,
-            inputs: {
-              prompt: prompt?.slice(0, 100),
-              model: node.data.model,
-              imageCount: imageUrls.length,
-            },
-            output: responseText,
-          });
+          // ── Gemini Node (Trigger.dev) ──
+          if (node.type === "geminiNode") {
+            const promptKey = node.data.connectedInputs?.prompt;
+            const prompt = resolvedOutputs[promptKey] ?? node.data.prompt ?? "";
+
+            const visionKeys = Array.isArray(node.data.connectedInputs?.vision)
+              ? node.data.connectedInputs.vision
+              : node.data.connectedInputs?.vision
+              ? [node.data.connectedInputs.vision]
+              : [];
+
+            const imageUrls = visionKeys
+              .map((k: string) => resolvedOutputs[k])
+              .filter(Boolean);
+
+            let responseText = "[AI Error] No response generated";
+            
+            try {
+              const handle = await tasks.trigger<typeof geminiTask>("gemini-task", {
+                model: node.data.model || "gemini-2.0-flash",
+                systemPrompt: node.data.systemPrompt,
+                prompt,
+                imageUrls,
+                nodeId,
+                runId: dbRun.id,
+              });
+              
+              const run = await runs.poll(handle.id);
+              if (run.status === "COMPLETED") {
+                responseText = run.output?.response ?? responseText;
+              } else {
+                throw new Error(run.error ? JSON.stringify(run.error) : `Status ${run.status}`);
+              }
+            } catch (triggerError: any) {
+              console.error(`Trigger.dev gemini-task failed, falling back to direct API:`, triggerError);
+              try {
+                const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+                const resolvedModel = resolveGeminiModel(node.data.model || "gemini-2.0-flash");
+                const geminiModel = genAI.getGenerativeModel({
+                  model: resolvedModel,
+                  systemInstruction: node.data.systemPrompt || undefined,
+                });
+                
+                const parts: any[] = [{ text: prompt }];
+                
+                if (imageUrls && imageUrls.length > 0) {
+                  for (const url of imageUrls) {
+                    try {
+                      const res = await fetch(url);
+                      const buffer = await res.arrayBuffer();
+                      const base64 = Buffer.from(buffer).toString("base64");
+                      const mimeType = res.headers.get("content-type") || "image/jpeg";
+                      parts.push({
+                        inlineData: { data: base64, mimeType },
+                      });
+                    } catch (e) {
+                      console.error("Fallback: Failed to load image:", url, e);
+                    }
+                  }
+                }
+                
+                const result = await geminiModel.generateContent(parts);
+                responseText = result.response.text();
+              } catch (fallbackError: any) {
+                console.error("Direct Gemini API fallback failed:", fallbackError);
+                responseText = `[AI Error] Fallback failed: ${fallbackError.message}`;
+              }
+            }
+
+            resolvedOutputs[`${nodeId}__response`] = responseText;
+            nodeResults.push({
+              nodeId,
+              status: "success",
+              duration: Date.now() - nodeStart,
+              inputs: {
+                prompt: prompt?.slice(0, 100),
+                model: node.data.model,
+                imageCount: imageUrls.length,
+              },
+              output: responseText,
+            });
+          }
+        };
+
+        // Run other nodes + crop nodes in parallel (crops have their own 30s wait)
+        const parallelTasks = [
+          ...otherNodeIds.map(processNode),
+          ...cropNodeIds.map(processNode),
+        ];
+        await Promise.all(parallelTasks);
+
+        // Run Gemini nodes sequentially (Trigger.dev already handles concurrency if needed, but we keep the logic)
+        for (const nid of geminiNodeIds) {
+          await processNode(nid);
         }
-      };
-
-      // Run other nodes + crop nodes in parallel (crops have their own 30s wait)
-      const parallelTasks = [
-        ...otherNodeIds.map(processNode),
-        ...cropNodeIds.map(processNode),
-      ];
-      await Promise.all(parallelTasks);
-
-      // Run Gemini nodes sequentially (Trigger.dev already handles concurrency if needed, but we keep the logic)
-      for (const nid of geminiNodeIds) {
-        await processNode(nid);
       }
+
+      const duration = computeExecutionDuration(nodes, edges);
+
+      // Update run to success
+      const run = await prisma.workflowRun.update({
+        where: { id: dbRun.id },
+        data: {
+          status: "success",
+          duration,
+          nodeResults,
+        },
+      });
+
+      await prisma.workflow.update({
+        where: { id: workflowId },
+        data: { status: "idle" },
+      });
+
+      return NextResponse.json({ success: true, run, outputs: resolvedOutputs });
+    } catch (error: any) {
+      console.error("Execution error:", error);
+
+      await prisma.workflow.update({
+        where: { id: workflowId },
+        data: { status: "failed" },
+      });
+
+      await prisma.workflowRun.update({
+        where: { id: dbRun.id },
+        data: {
+          status: "failed",
+          duration: Date.now() - startTime,
+          nodeResults,
+        },
+      });
+
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
-
-    const duration = computeExecutionDuration(nodes, edges);
-
-    // Update run to success
-    const run = await prisma.workflowRun.update({
-      where: { id: dbRun.id },
-      data: {
-        status: "success",
-        duration,
-        nodeResults,
-      },
-    });
-
-    await prisma.workflow.update({
-      where: { id: workflowId },
-      data: { status: "idle" },
-    });
-
-    return NextResponse.json({ success: true, run, outputs: resolvedOutputs });
-  } catch (error: any) {
-    console.error("Execution error:", error);
-
-    await prisma.workflow.update({
-      where: { id: workflowId },
-      data: { status: "failed" },
-    });
-
-    await prisma.workflowRun.update({
-      where: { id: dbRun.id },
-      data: {
-        status: "failed",
-        duration: Date.now() - startTime,
-        nodeResults,
-      },
-    });
-
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (topLevelError: any) {
+    console.error("Top level execution error:", topLevelError);
+    return NextResponse.json({ error: topLevelError.message || "Unknown error occurred" }, { status: 500 });
   }
 }
 
