@@ -12,13 +12,13 @@ export interface GeminiPayload {
 
 function resolveGeminiModel(model: string): string {
   const map: Record<string, string> = {
-    "gemini-3.1-pro": "gemini-1.5-pro",
-    "gemini-3.1": "gemini-1.5-flash",
-    "gemini-1.5-pro": "gemini-1.5-pro",
-    "gemini-1.5-flash": "gemini-1.5-flash",
+    "gemini-3.1-pro": "gemini-3.1-pro-preview",
+    "gemini-3.1": "gemini-3.1-flash-lite",
+    "gemini-1.5-pro": "gemini-2.5-pro",
+    "gemini-1.5-flash": "gemini-2.5-flash",
     "gemini-2.0-flash": "gemini-2.0-flash",
   };
-  return map[model] || "gemini-1.5-flash";
+  return map[model] || "gemini-2.5-flash";
 }
 
 export const geminiTask = task({

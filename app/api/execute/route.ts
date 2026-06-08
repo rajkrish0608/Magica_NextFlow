@@ -2,6 +2,19 @@ import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+function resolveGeminiModel(model: string): string {
+  const map: Record<string, string> = {
+    "gemini-3.1-pro": "gemini-3.1-pro-preview",
+    "gemini-3.1": "gemini-3.1-flash-lite",
+    "gemini-1.5-pro": "gemini-2.5-pro",
+    "gemini-1.5-flash": "gemini-2.5-flash",
+    "gemini-2.0-flash": "gemini-2.0-flash",
+  };
+  return map[model] || "gemini-2.5-flash";
+}
+
 
 // Allow execution to run up to 60 seconds on Vercel Hobby tier
 export const maxDuration = 60;
@@ -192,21 +205,56 @@ export async function POST(req: NextRequest) {
 
           let responseText = "[AI Error] No response generated";
           
-          const handle = await tasks.trigger<typeof geminiTask>("gemini-task", {
-            model: node.data.model || "gemini-2.0-flash",
-            systemPrompt: node.data.systemPrompt,
-            prompt,
-            imageUrls,
-            nodeId,
-            runId: dbRun.id,
-          });
-          
-          const run = await runs.poll(handle.id);
-          if (run.status === "COMPLETED") {
-            responseText = run.output?.response ?? responseText;
-          } else {
-            console.error(`Trigger.dev gemini-task failed for node ${nodeId}`, run);
-            responseText = `[AI Error] Trigger.dev task failed with status: ${run.status}. Error: ${JSON.stringify(run.error || "Unknown Error")}`;
+          try {
+            const handle = await tasks.trigger<typeof geminiTask>("gemini-task", {
+              model: node.data.model || "gemini-2.0-flash",
+              systemPrompt: node.data.systemPrompt,
+              prompt,
+              imageUrls,
+              nodeId,
+              runId: dbRun.id,
+            });
+            
+            const run = await runs.poll(handle.id);
+            if (run.status === "COMPLETED") {
+              responseText = run.output?.response ?? responseText;
+            } else {
+              throw new Error(run.error ? JSON.stringify(run.error) : `Status ${run.status}`);
+            }
+          } catch (triggerError) {
+            console.error(`Trigger.dev gemini-task failed, falling back to direct API:`, triggerError);
+            try {
+              const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
+              const resolvedModel = resolveGeminiModel(node.data.model || "gemini-2.0-flash");
+              const geminiModel = genAI.getGenerativeModel({
+                model: resolvedModel,
+                systemInstruction: node.data.systemPrompt || undefined,
+              });
+              
+              const parts: any[] = [{ text: prompt }];
+              
+              if (imageUrls && imageUrls.length > 0) {
+                for (const url of imageUrls) {
+                  try {
+                    const res = await fetch(url);
+                    const buffer = await res.arrayBuffer();
+                    const base64 = Buffer.from(buffer).toString("base64");
+                    const mimeType = res.headers.get("content-type") || "image/jpeg";
+                    parts.push({
+                      inlineData: { data: base64, mimeType },
+                    });
+                  } catch (e) {
+                    console.error("Fallback: Failed to load image:", url, e);
+                  }
+                }
+              }
+              
+              const result = await geminiModel.generateContent(parts);
+              responseText = result.response.text();
+            } catch (fallbackError: any) {
+              console.error("Direct Gemini API fallback failed:", fallbackError);
+              responseText = `[AI Error] Fallback failed: ${fallbackError.message}`;
+            }
           }
 
           resolvedOutputs[`${nodeId}__response`] = responseText;
