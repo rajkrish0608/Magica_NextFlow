@@ -205,7 +205,8 @@ export async function POST(req: NextRequest) {
           if (run.status === "COMPLETED") {
             responseText = run.output?.response ?? responseText;
           } else {
-            console.error(`Trigger.dev gemini-task failed for node ${nodeId}`);
+            console.error(`Trigger.dev gemini-task failed for node ${nodeId}`, run);
+            responseText = `[AI Error] Trigger.dev task failed with status: ${run.status}. Error: ${JSON.stringify(run.error || "Unknown Error")}`;
           }
 
           resolvedOutputs[`${nodeId}__response`] = responseText;
