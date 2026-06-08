@@ -6,7 +6,7 @@ import { z } from "zod";
 // Allow execution to run up to 60 seconds on Vercel Hobby tier
 export const maxDuration = 60;
 
-import { tasks } from "@trigger.dev/sdk/v3";
+import { tasks, runs } from "@trigger.dev/sdk/v3";
 import type { cropImageTask } from "@/trigger/crop-image";
 import type { geminiTask } from "@/trigger/gemini-task";
 
@@ -140,7 +140,7 @@ export async function POST(req: NextRequest) {
           let duration = 30000;
           
           if (imageUrl) {
-            const result = await tasks.triggerAndWait<typeof cropImageTask>("crop-image", {
+            const handle = await tasks.trigger<typeof cropImageTask>("crop-image", {
               imageUrl,
               x: node.data.inputs?.x ?? 0,
               y: node.data.inputs?.y ?? 0,
@@ -150,9 +150,10 @@ export async function POST(req: NextRequest) {
               runId: dbRun.id,
             });
             
-            if (result.ok) {
-              outputUrl = result.output?.outputUrl ?? outputUrl;
-              duration = result.output?.duration ?? duration;
+            const run = await runs.poll(handle.id);
+            if (run.status === "COMPLETED") {
+              outputUrl = run.output?.outputUrl ?? outputUrl;
+              duration = run.output?.duration ?? duration;
             } else {
               console.error(`Trigger.dev crop-image task failed for node ${nodeId}`);
             }
@@ -191,7 +192,7 @@ export async function POST(req: NextRequest) {
 
           let responseText = "[AI Error] No response generated";
           
-          const result = await tasks.triggerAndWait<typeof geminiTask>("gemini-task", {
+          const handle = await tasks.trigger<typeof geminiTask>("gemini-task", {
             model: node.data.model || "gemini-2.0-flash",
             systemPrompt: node.data.systemPrompt,
             prompt,
@@ -200,8 +201,9 @@ export async function POST(req: NextRequest) {
             runId: dbRun.id,
           });
           
-          if (result.ok) {
-            responseText = result.output?.response ?? responseText;
+          const run = await runs.poll(handle.id);
+          if (run.status === "COMPLETED") {
+            responseText = run.output?.response ?? responseText;
           } else {
             console.error(`Trigger.dev gemini-task failed for node ${nodeId}`);
           }
