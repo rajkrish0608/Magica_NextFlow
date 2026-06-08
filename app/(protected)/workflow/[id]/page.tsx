@@ -310,7 +310,7 @@ export default function WorkflowPage() {
         } catch {}
 
         // Refresh runs list
-        const runRes = await fetch(`/api/workflows/${id}`);
+        const runRes = await fetch(`/api/workflows/${id}?t=${Date.now()}`, { cache: "no-store" });
         if (runRes.ok) {
           const runData = await runRes.json();
           setRuns(runData.workflow?.runs || []);
