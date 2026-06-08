@@ -309,15 +309,11 @@ export default function WorkflowPage() {
           });
         } catch {}
 
-        // Refresh runs list
-        const runRes = await fetch(`/api/workflows/${id}?t=${Date.now()}`, { cache: "no-store" });
-        if (runRes.ok) {
-          const runData = await runRes.json();
-          setRuns(runData.workflow?.runs || []);
-        }
 
-      } catch (err) {
+
+      } catch (err: any) {
         console.error("Run failed:", err);
+        window.alert(`Execution Error: ${err.message}`);
         // Mark all unfinished target nodes as failed
         for (const nodeId of targetIds) {
           const node = storeState.nodes.find((n) => n.id === nodeId);
@@ -328,6 +324,13 @@ export default function WorkflowPage() {
         clearRunningNodes();
         setIsRunningLocal(false);
         setIsRunning(false);
+      } finally {
+        // ALWAYS refresh runs list, even if it failed
+        const runRes = await fetch(`/api/workflows/${id}?t=${Date.now()}`, { cache: "no-store" });
+        if (runRes.ok) {
+          const runData = await runRes.json();
+          setRuns(runData.workflow?.runs || []);
+        }
       }
     },
     [id, isRunning, setIsRunning, setRunningNodes, clearRunningNodes, updateNodeData]
