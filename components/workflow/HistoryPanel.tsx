@@ -72,7 +72,7 @@ const OutputDisplay = ({ output, label = "→" }: { output: any; label?: string 
           </button>
         )}
       </div>
-      <p className={`text-[10px] text-gray-500 font-mono mt-0.5 ${expanded ? "whitespace-pre-wrap break-all" : "truncate"}`}
+      <p className={`text-[10px] text-gray-500 font-mono mt-0.5 whitespace-pre-wrap break-all ${expanded ? "" : "line-clamp-3"}`}
          style={expanded ? { maxHeight: 200, overflowY: "auto" } : {}}>
         {expanded ? str : (str.length > 200 ? str.slice(0, 200) + "..." : str)}
       </p>
